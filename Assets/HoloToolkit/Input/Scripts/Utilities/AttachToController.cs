@@ -11,20 +11,15 @@ namespace HoloToolkit.Unity.InputModule
     /// <summary>
     /// Waits for a controller to be instantiated, then attaches itself to a specified element
     /// </summary>
-    public class AttachToController : MonoBehaviour
+    public class AttachToController : ControllerFinder
     {
-#if  UNITY_WSA && UNITY_2017_2_OR_NEWER
-        public InteractionSourceHandedness Handedness { get { return handedness; } }
-
+#if UNITY_WSA && UNITY_2017_2_OR_NEWER
         [Header("AttachToController Elements")]
         [SerializeField]
-        protected InteractionSourceHandedness handedness = InteractionSourceHandedness.Left;
-
+        protected new InteractionSourceHandedness handedness = InteractionSourceHandedness.Left;
 #endif
-        public MotionControllerInfo.ControllerElementEnum Element { get { return element; } }
-
         [SerializeField]
-        protected MotionControllerInfo.ControllerElementEnum element = MotionControllerInfo.ControllerElementEnum.PointingPose;
+        protected new MotionControllerInfo.ControllerElementEnum element = MotionControllerInfo.ControllerElementEnum.PointingPose;
 
         public bool SetChildrenInactiveWhenDetached = true;
 
@@ -42,65 +37,38 @@ namespace HoloToolkit.Unity.InputModule
 
         public bool IsAttached { get; private set; }
 
-        private Transform elementTransform;
-        public Transform ElementTransform { get; private set; }
-
-        protected MotionControllerInfo controller;
-
         protected virtual void OnAttachToController() { }
         protected virtual void OnDetachFromController() { }
 
-#if UNITY_WSA && UNITY_2017_2_OR_NEWER
-        protected virtual void OnEnable()
+        protected override void OnEnable()
         {
             SetChildrenActive(false);
 
+#if UNITY_WSA && UNITY_2017_2_OR_NEWER
             // Look if the controller has loaded.
             if (MotionControllerVisualizer.Instance.TryGetControllerModel(handedness, out controller))
             {
-                AttachElementToController(controller);
+                AddControllerTransform(controller);
             }
-
-            MotionControllerVisualizer.Instance.OnControllerModelLoaded += AttachElementToController;
-            MotionControllerVisualizer.Instance.OnControllerModelUnloaded += DetachElementFromController;
+#endif 
+            MotionControllerVisualizer.Instance.OnControllerModelLoaded += AddControllerTransform;
+            MotionControllerVisualizer.Instance.OnControllerModelUnloaded += RemoveControllerTransform;
         }
 
-        protected virtual void OnDisable()
+        protected override void AddControllerTransform(MotionControllerInfo newController)
         {
-            if (MotionControllerVisualizer.IsInitialized)
-            {
-                MotionControllerVisualizer.Instance.OnControllerModelLoaded -= AttachElementToController;
-                MotionControllerVisualizer.Instance.OnControllerModelUnloaded -= DetachElementFromController;
-            }
-        }
-
-        protected virtual void OnDestroy()
-        {
-            if (MotionControllerVisualizer.IsInitialized)
-            {
-                MotionControllerVisualizer.Instance.OnControllerModelLoaded -= AttachElementToController;
-                MotionControllerVisualizer.Instance.OnControllerModelUnloaded -= DetachElementFromController;
-            }
-        }
-
-        private void AttachElementToController(MotionControllerInfo newController)
-        {
+#if UNITY_WSA && UNITY_2017_2_OR_NEWER
             if (!IsAttached && newController.Handedness == handedness)
             {
-                if (!newController.TryGetElement(element, out elementTransform))
-                {
-                    Debug.LogError("Unable to find element of type " + element + " under controller " + newController.ControllerParent.name + "; not attaching.");
-                    return;
-                }
-
-                controller = newController;
+                base.AddControllerTransform(newController);
 
                 SetChildrenActive(true);
 
                 // Parent ourselves under the element and set our offsets
-                transform.parent = elementTransform;
+                transform.parent = ElementTransform;
                 transform.localPosition = positionOffset;
                 transform.localEulerAngles = rotationOffset;
+
                 if (setScaleOnAttach)
                 {
                     transform.localScale = scale;
@@ -111,21 +79,25 @@ namespace HoloToolkit.Unity.InputModule
 
                 IsAttached = true;
             }
+#endif
         }
 
-        private void DetachElementFromController(MotionControllerInfo oldController)
+        protected override void RemoveControllerTransform(MotionControllerInfo oldController)
         {
+#if UNITY_WSA && UNITY_2017_2_OR_NEWER
             if (IsAttached && oldController.Handedness == handedness)
             {
+                base.RemoveControllerTransform(oldController);
+
                 OnDetachFromController();
 
-                controller = null;
                 transform.parent = null;
 
                 SetChildrenActive(false);
 
                 IsAttached = false;
             }
+#endif
         }
 
         private void SetChildrenActive(bool isActive)
@@ -138,6 +110,5 @@ namespace HoloToolkit.Unity.InputModule
                 }
             }
         }
-#endif
     }
 }
